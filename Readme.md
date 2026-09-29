@@ -19,12 +19,21 @@ recruiterbot/
 ├── app/
 │   ├── main.py                 # FastAPI application entry point
 │   ├── config.py               # Configuration via environment variables
-│   └── db/
-│       ├── connection.py       # Database connection & initialization
-│       ├── schema.sql          # Database schema (handwritten SQL)
-│       └── seed.sql            # Seed data (15 candidates, 6 jobs)
+│   ├── db/
+│   │   ├── connection.py       # Database connection & initialization
+│   │   ├── schema.sql          # Database schema (handwritten SQL)
+│   │   └── seed.sql            # Seed data (15 candidates, 6 jobs)
+│   ├── models/
+│   │   └── schemas.py          # Pydantic response models
+│   ├── repositories/
+│   │   ├── candidate_repository.py  # Candidate data access
+│   │   └── job_repository.py        # Job data access
+│   └── api/
+│       ├── candidates.py       # Candidate endpoints
+│       └── jobs.py             # Job endpoints
 ├── tests/
-│   └── test_health.py          # Health & database tests
+│   ├── test_health.py          # Health & database tests
+│   └── test_candidates_jobs.py # Candidate & job API tests
 ├── requirements.txt            # Python dependencies
 ├── Dockerfile                  # API container
 ├── docker-compose.yml          # Multi-container orchestration
@@ -131,6 +140,41 @@ curl http://localhost:8000/jobs
 
 # Get job
 curl http://localhost:8000/jobs/1
+```
+
+### Example Responses
+
+**GET /candidates/1**
+```json
+{
+  "id": 1,
+  "name": "Sherlock H.",
+  "skills": [
+    {"id": 1, "name": "deduction"},
+    {"id": 2, "name": "pattern-recognition"},
+    {"id": 3, "name": "forensics"}
+  ],
+  "experience_years": 8,
+  "availability": "Immediate",
+  "traits": ["analytical", "blunt"],
+  "quirk": "Solves problems by eliminating the impossible; occasionally insufferable in standups."
+}
+```
+
+**GET /jobs/1**
+```json
+{
+  "id": 1,
+  "title": "Backend Detective",
+  "required_skills": [
+    {"id": 1, "name": "deduction"},
+    {"id": 2, "name": "pattern-recognition"},
+    {"id": 3, "name": "forensics"}
+  ],
+  "min_experience": 3,
+  "culture_keywords": ["analytical", "autonomous"],
+  "tagline": "We have a bug. We have no leads. We have you."
+}
 ```
 
 ## Matching Algorithm
