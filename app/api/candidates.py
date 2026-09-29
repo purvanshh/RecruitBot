@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.repositories.candidate_repository import get_all_candidates, get_candidate_by_id
+from app.services.matching_service import get_candidate_matches
 from app.models.schemas import CandidateListResponse, CandidateResponse
 
 
@@ -18,3 +19,11 @@ async def get_candidate(candidate_id: int):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return CandidateResponse(**candidate)
+
+
+@router.get("/{candidate_id}/matches")
+async def get_candidate_matches_endpoint(candidate_id: int):
+    result = get_candidate_matches(candidate_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return result

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.repositories.job_repository import get_all_jobs, get_job_by_id
+from app.services.matching_service import get_job_matches
 from app.models.schemas import JobListResponse, JobResponse
 
 
@@ -18,3 +19,11 @@ async def get_job(job_id: int):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobResponse(**job)
+
+
+@router.get("/{job_id}/matches")
+async def get_job_matches_endpoint(job_id: int):
+    result = get_job_matches(job_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return result
