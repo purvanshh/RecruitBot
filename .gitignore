@@ -24,3 +24,5 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+.archify
+STUDY_GUIDE.md

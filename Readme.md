@@ -251,9 +251,9 @@ Each match includes a human-readable reason generated deterministically (no LLMs
 The `sql_detective.sql` file contains five analytical queries for the second part of the assignment, using the supplied schema:
 
 - **recruiters** (id, name, region)
-- **job_postings** (id, title, recruiter_id, department, posted_date, status)
-- **applicants** (id, name, email, source, applied_date)
-- **interviews** (id, applicant_id, job_posting_id, stage, scheduled_date, result)
+- **job_postings** (id, title, recruiter_id, department, opened_date, status)
+- **applicants** (id, full_name, email, source, applied_date)
+- **interviews** (id, applicant_id, job_posting_id, stage, scheduled_date, outcome)
 
 ### Queries
 

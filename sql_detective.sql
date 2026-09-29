@@ -19,13 +19,13 @@
 --     title VARCHAR(255) NOT NULL,
 --     recruiter_id INTEGER REFERENCES recruiters(id),
 --     department VARCHAR(100) NOT NULL,
---     posted_date DATE NOT NULL,
+--     opened_date DATE NOT NULL,
 --     status VARCHAR(50) NOT NULL
 -- );
 
 -- CREATE TABLE applicants (
 --     id SERIAL PRIMARY KEY,
---     name VARCHAR(255) NOT NULL,
+--     full_name VARCHAR(255) NOT NULL,
 --     email VARCHAR(255) NOT NULL,
 --     source VARCHAR(100),
 --     applied_date DATE NOT NULL
@@ -37,7 +37,7 @@
 --     job_posting_id INTEGER REFERENCES job_postings(id),
 --     stage VARCHAR(50) NOT NULL,
 --     scheduled_date DATE NOT NULL,
---     result VARCHAR(50)
+--     outcome VARCHAR(50)
 -- );
 
 -- =============================================
@@ -49,14 +49,14 @@ SELECT
     jp.id AS job_posting_id,
     jp.title AS job_title,
     jp.department,
-    jp.posted_date,
+    jp.opened_date,
     r.id AS recruiter_id,
     r.name AS recruiter_name,
     r.region AS recruiter_region
 FROM job_postings jp
 JOIN recruiters r ON jp.recruiter_id = r.id
 WHERE jp.status = 'open'
-ORDER BY jp.posted_date, jp.id;
+ORDER BY jp.opened_date, jp.id;
 
 -- =============================================
 -- QUESTION 2
@@ -81,26 +81,29 @@ ORDER BY jp.id;
 -- Ananya Rao / ananya.rao@mail.com
 -- Ananya Rao / Ananya.Rao@mail.com
 -- Handle the data carefully rather than assuming applicant ID represents a unique person.
+-- NOTE: The supplied schema does not include a separate applicant-to-job application 
+-- junction table. We associate applicants with job_postings through the interviews table,
+-- meaning an applicant is considered to have "applied" to a job if they have at least 
+-- one interview record for that job posting.
 -- =============================================
 -- Question 3
 WITH normalized_applicants AS (
     SELECT 
         id,
-        name,
+        full_name,
         LOWER(email) AS normalized_email,
-        applied_date,
         job_posting_id
     FROM applicants a
     JOIN interviews i ON a.id = i.applicant_id
 ),
 person_applications AS (
     SELECT 
-        name,
+        full_name AS name,
         normalized_email,
         COUNT(DISTINCT job_posting_id) AS job_count,
         STRING_AGG(DISTINCT job_posting_id::text, ', ' ORDER BY job_posting_id) AS job_ids
     FROM normalized_applicants
-    GROUP BY name, normalized_email
+    GROUP BY full_name, normalized_email
     HAVING COUNT(DISTINCT job_posting_id) > 1
 )
 SELECT 
@@ -123,7 +126,7 @@ WITH final_interviews AS (
         r.id AS recruiter_id,
         r.name AS recruiter_name,
         r.region,
-        i.result
+        i.outcome
     FROM recruiters r
     JOIN job_postings jp ON r.id = jp.recruiter_id
     JOIN interviews i ON jp.id = i.job_posting_id
@@ -135,7 +138,7 @@ recruiter_stats AS (
         recruiter_name,
         region,
         COUNT(*) AS total_final_interviews,
-        COUNT(CASE WHEN result = 'passed' THEN 1 END) AS passed_final_interviews
+        COUNT(CASE WHEN outcome = 'passed' THEN 1 END) AS passed_final_interviews
     FROM final_interviews
     GROUP BY recruiter_id, recruiter_name, region
     HAVING COUNT(*) >= 3
@@ -163,7 +166,7 @@ WITH final_placements AS (
         jp.department,
         r.id AS recruiter_id,
         r.name AS recruiter_name,
-        COUNT(CASE WHEN i.result = 'passed' THEN 1 END) AS successful_placements
+        COUNT(CASE WHEN i.outcome = 'passed' THEN 1 END) AS successful_placements
     FROM recruiters r
     JOIN job_postings jp ON r.id = jp.recruiter_id
     JOIN interviews i ON jp.id = i.job_posting_id
