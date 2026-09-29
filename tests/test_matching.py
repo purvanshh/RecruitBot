@@ -2,8 +2,6 @@ import sys
 sys.path.insert(0, "/app")
 
 import pytest
-from httpx import AsyncClient, ASGITransport
-from app.main import app
 from app.utils.scoring import (
     calculate_skill_score,
     calculate_experience_score,
@@ -112,126 +110,112 @@ class TestScoringFunctions:
 class TestMatchingAPI:
     
     @pytest.mark.asyncio
-    async def test_job_matches_endpoint(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/jobs/1/matches")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["job_id"] == 1
-            assert data["job_title"] == "Backend Detective"
-            assert "matches" in data
-            assert len(data["matches"]) == 15
-            
-            # Check sorting: score DESC, then experience DESC
-            scores = [m["score"] for m in data["matches"]]
-            assert scores == sorted(scores, reverse=True)
-            
-            # Verify Sherlock H. is top match for Backend Detective
-            top_match = data["matches"][0]
-            assert top_match["candidate_name"] == "Sherlock H."
-            # Sherlock has 3/3 skills, 8/3 exp, but only 1/2 culture (analytical vs autonomous)
-            # Score = 100*0.60 + 100*0.25 + 50*0.15 = 92.5
-            assert top_match["score"] == 92.5
+    async def test_job_matches_endpoint(self, client):
+        response = await client.get("/jobs/1/matches")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["job_id"] == 1
+        assert data["job_title"] == "Backend Detective"
+        assert "matches" in data
+        assert len(data["matches"]) == 15
+        
+        # Check sorting: score DESC, then experience DESC
+        scores = [m["score"] for m in data["matches"]]
+        assert scores == sorted(scores, reverse=True)
+        
+        # Verify Sherlock H. is top match for Backend Detective
+        top_match = data["matches"][0]
+        assert top_match["candidate_name"] == "Sherlock H."
+        # Sherlock has 3/3 skills, 8/3 exp, but only 1/2 culture (analytical vs autonomous)
+        # Score = 100*0.60 + 100*0.25 + 50*0.15 = 92.5
+        assert top_match["score"] == 92.5
     
     @pytest.mark.asyncio
-    async def test_job_matches_not_found(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/jobs/999/matches")
-            assert response.status_code == 404
-            assert response.json()["detail"] == "Job not found"
+    async def test_job_matches_not_found(self, client):
+        response = await client.get("/jobs/999/matches")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Job not found"
     
     @pytest.mark.asyncio
-    async def test_candidate_matches_endpoint(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/candidates/1/matches")
-            assert response.status_code == 200
-            data = response.json()
-            assert data["candidate_id"] == 1
-            assert data["candidate_name"] == "Sherlock H."
-            assert "matches" in data
-            assert len(data["matches"]) == 6
-            
-            # Check sorting: score DESC, then job_id ASC
-            scores = [m["score"] for m in data["matches"]]
-            assert scores == sorted(scores, reverse=True)
-            
-            # Verify Backend Detective is top match for Sherlock
-            top_match = data["matches"][0]
-            assert top_match["job_title"] == "Backend Detective"
-            # Same calculation: 3/3 skills, 8/3 exp, 1/2 culture = 92.5
-            assert top_match["score"] == 92.5
+    async def test_candidate_matches_endpoint(self, client):
+        response = await client.get("/candidates/1/matches")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["candidate_id"] == 1
+        assert data["candidate_name"] == "Sherlock H."
+        assert "matches" in data
+        assert len(data["matches"]) == 6
+        
+        # Check sorting: score DESC, then job_id ASC
+        scores = [m["score"] for m in data["matches"]]
+        assert scores == sorted(scores, reverse=True)
+        
+        # Verify Backend Detective is top match for Sherlock
+        top_match = data["matches"][0]
+        assert top_match["job_title"] == "Backend Detective"
+        # Same calculation: 3/3 skills, 8/3 exp, 1/2 culture = 92.5
+        assert top_match["score"] == 92.5
     
     @pytest.mark.asyncio
-    async def test_candidate_matches_not_found(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/candidates/999/matches")
-            assert response.status_code == 404
-            assert response.json()["detail"] == "Candidate not found"
+    async def test_candidate_matches_not_found(self, client):
+        response = await client.get("/candidates/999/matches")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Candidate not found"
     
     @pytest.mark.asyncio
-    async def test_deterministic_tie_breaking_job_to_candidate(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/jobs/1/matches")
-            data = response.json()
-            
-            # Find candidates with same score, verify experience tie-breaker
-            same_score_groups = {}
-            for m in data["matches"]:
-                score = m["score"]
-                if score not in same_score_groups:
-                    same_score_groups[score] = []
-                same_score_groups[score].append(m["candidate_id"])
-            
-            # For each score group with multiple candidates, verify experience DESC
-            for score, candidate_ids in same_score_groups.items():
-                if len(candidate_ids) > 1:
-                    # Get their experience years
-                    experiences = []
-                    for cid in candidate_ids:
-                        c_resp = await client.get(f"/candidates/{cid}")
-                        experiences.append(c_resp.json()["experience_years"])
-                    
-                    # Should be sorted by experience DESC
-                    assert experiences == sorted(experiences, reverse=True)
+    async def test_deterministic_tie_breaking_job_to_candidate(self, client):
+        response = await client.get("/jobs/1/matches")
+        data = response.json()
+        
+        # Find candidates with same score, verify experience tie-breaker
+        same_score_groups = {}
+        for m in data["matches"]:
+            score = m["score"]
+            if score not in same_score_groups:
+                same_score_groups[score] = []
+            same_score_groups[score].append(m["candidate_id"])
+        
+        # For each score group with multiple candidates, verify experience DESC
+        for score, candidate_ids in same_score_groups.items():
+            if len(candidate_ids) > 1:
+                # Get their experience years
+                experiences = []
+                for cid in candidate_ids:
+                    c_resp = await client.get(f"/candidates/{cid}")
+                    experiences.append(c_resp.json()["experience_years"])
+                
+                # Should be sorted by experience DESC
+                assert experiences == sorted(experiences, reverse=True)
     
     @pytest.mark.asyncio
-    async def test_deterministic_tie_breaking_candidate_to_job(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.get("/candidates/1/matches")
-            data = response.json()
-            
-            # Check that jobs with same score are sorted by job_id ASC
-            same_score_groups = {}
-            for m in data["matches"]:
-                score = m["score"]
-                if score not in same_score_groups:
-                    same_score_groups[score] = []
-                same_score_groups[score].append(m["job_id"])
-            
-            for score, job_ids in same_score_groups.items():
-                if len(job_ids) > 1:
-                    assert job_ids == sorted(job_ids)
+    async def test_deterministic_tie_breaking_candidate_to_job(self, client):
+        response = await client.get("/candidates/1/matches")
+        data = response.json()
+        
+        # Check that jobs with same score are sorted by job_id ASC
+        same_score_groups = {}
+        for m in data["matches"]:
+            score = m["score"]
+            if score not in same_score_groups:
+                same_score_groups[score] = []
+            same_score_groups[score].append(m["job_id"])
+        
+        for score, job_ids in same_score_groups.items():
+            if len(job_ids) > 1:
+                assert job_ids == sorted(job_ids)
     
     @pytest.mark.asyncio
-    async def test_all_matches_have_reasons(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            # Test job matches
-            resp = await client.get("/jobs/1/matches")
-            for m in resp.json()["matches"]:
-                assert "reason" in m
-                assert len(m["reason"]) > 0
-                assert m["reason"].endswith(".")
-            
-            # Test candidate matches
-            resp = await client.get("/candidates/1/matches")
-            for m in resp.json()["matches"]:
-                assert "reason" in m
-                assert len(m["reason"]) > 0
-                assert m["reason"].endswith(".")
+    async def test_all_matches_have_reasons(self, client):
+        # Test job matches
+        resp = await client.get("/jobs/1/matches")
+        for m in resp.json()["matches"]:
+            assert "reason" in m
+            assert len(m["reason"]) > 0
+            assert m["reason"].endswith(".")
+        
+        # Test candidate matches
+        resp = await client.get("/candidates/1/matches")
+        for m in resp.json()["matches"]:
+            assert "reason" in m
+            assert len(m["reason"]) > 0
+            assert m["reason"].endswith(".")
