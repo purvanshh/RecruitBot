@@ -8,6 +8,7 @@ A backend service for matching candidates to jobs and vice versa, built for the 
 - **FastAPI** — Web framework
 - **PostgreSQL 16** — Database
 - **psycopg3** — Database driver (raw SQL, no ORM)
+- **psycopg-pool** — Connection pooling
 - **Pydantic** — Data validation
 - **pytest** — Testing
 - **Docker** — Containerization
@@ -20,7 +21,7 @@ recruiterbot/
 │   ├── main.py                 # FastAPI application entry point
 │   ├── config.py               # Configuration via environment variables
 │   ├── db/
-│   │   ├── connection.py       # Database connection & initialization
+│   │   ├── connection.py       # Database connection pool & initialization
 │   │   ├── schema.sql          # Database schema (handwritten SQL)
 │   │   └── seed.sql            # Seed data (15 candidates, 6 jobs)
 │   ├── models/
@@ -28,12 +29,18 @@ recruiterbot/
 │   ├── repositories/
 │   │   ├── candidate_repository.py  # Candidate data access
 │   │   └── job_repository.py        # Job data access
-│   └── api/
-│       ├── candidates.py       # Candidate endpoints
-│       └── jobs.py             # Job endpoints
+│   ├── services/
+│   │   └── matching_service.py      # Matching engine & scoring
+│   ├── api/
+│   │   ├── candidates.py       # Candidate endpoints
+│   │   └── jobs.py             # Job endpoints
+│   └── utils/
+│       └── scoring.py          # Scoring utility functions
 ├── tests/
 │   ├── test_health.py          # Health & database tests
-│   └── test_candidates_jobs.py # Candidate & job API tests
+│   ├── test_candidates_jobs.py # Candidate & job API tests
+│   └── test_matching.py        # Matching engine tests
+├── sql_detective.sql           # SQL Detective challenge queries
 ├── requirements.txt            # Python dependencies
 ├── Dockerfile                  # API container
 ├── docker-compose.yml          # Multi-container orchestration
@@ -140,6 +147,12 @@ curl http://localhost:8000/jobs
 
 # Get job
 curl http://localhost:8000/jobs/1
+
+# Get ranked candidates for a job
+curl http://localhost:8000/jobs/1/matches
+
+# Get ranked jobs for a candidate
+curl http://localhost:8000/candidates/1/matches
 ```
 
 ### Example Responses
@@ -174,6 +187,22 @@ curl http://localhost:8000/jobs/1
   "min_experience": 3,
   "culture_keywords": ["analytical", "autonomous"],
   "tagline": "We have a bug. We have no leads. We have you."
+}
+```
+
+**GET /jobs/1/matches**
+```json
+{
+  "job_id": 1,
+  "job_title": "Backend Detective",
+  "matches": [
+    {
+      "candidate_id": 1,
+      "candidate_name": "Sherlock H.",
+      "score": 92.5,
+      "reason": "Matched 3/3 required skills. exceeds the minimum experience requirement. and matches the analytical culture."
+    }
+  ]
 }
 ```
 
@@ -214,22 +243,52 @@ If a job has no culture keywords, culture score defaults to 100 (neutral, doesn'
 ### Match Explanation
 
 Each match includes a human-readable reason generated deterministically (no LLMs):
-- "Matched 3/3 required skills and exceeds the minimum experience requirement."
-- "Matched 2/3 required skills, meets experience requirement, and matches the analytical culture."
+- "Matched 3/3 required skills. exceeds the minimum experience requirement. and matches the analytical culture."
+- "Matched 2/3 required skills. below the minimum experience requirement. but no culture keyword match."
+
+## SQL Detective Challenge
+
+The `sql_detective.sql` file contains five analytical queries for the second part of the assignment, using the supplied schema:
+
+- **recruiters** (id, name, region)
+- **job_postings** (id, title, recruiter_id, department, posted_date, status)
+- **applicants** (id, name, email, source, applied_date)
+- **interviews** (id, applicant_id, job_posting_id, stage, scheduled_date, result)
+
+### Queries
+
+1. **Open job postings with recruiters** — Lists all open job postings with their owning recruiter details.
+2. **Final-stage applicant count per job** — Counts distinct applicants who reached the Final interview stage for each job posting.
+3. **Duplicate applicants across jobs** — Finds people (normalized by name + lowercase email) who applied to more than one job posting.
+4. **Recruiter final-stage conversion rate** — Calculates passed/total Final interviews per recruiter (minimum 3 Final interviews).
+5. **Bonus: Top recruiter per department** — Uses window function (`ROW_NUMBER`) to find the recruiter with the most successful Final-stage placements per department.
+
+Run the queries directly in PostgreSQL:
+```bash
+psql -U postgres -d recruiterbot -f sql_detective.sql
+```
 
 ## Design Decisions & Trade-offs
 
-1. **Raw SQL only** — No ORM/query builder as required by assignment. All queries are handwritten in repository modules.
+1. **Raw SQL only** — No ORM/query builder as required by assignment. All queries are handwritten in repository and service modules.
 
 2. **Normalized schema** — Skills, traits, and culture keywords are in separate tables with junction tables. This avoids data duplication and enables efficient set-based matching queries.
 
-3. **Synchronous psycopg3** — Used with connection pooling via context managers. For a small assignment scope, async wasn't necessary but could be added for scale.
+3. **Connection pooling** — Uses `psycopg-pool` with configurable min/max connections for efficient database access.
 
-4. **Deterministic scoring** — All scoring logic is pure Python functions, making it easily testable and auditable.
+4. **Deterministic scoring** — All scoring logic is pure Python functions in `app/utils/scoring.py`, making it easily testable and auditable.
 
 5. **Seed data integrity** — Used `ON CONFLICT DO NOTHING` for idempotent seeding.
 
 6. **No authentication/authorization** — Out of scope for this assignment.
+
+7. **Error handling** — Global exception handlers for HTTP exceptions (404, 422) and generic 500 errors with logging.
+
+8. **Input validation** — Path parameters validated with `ge=1` to reject negative/zero IDs.
+
+9. **Logging** — Structured logging for startup, shutdown, database operations, and errors.
+
+10. **API documentation** — Full OpenAPI/Swagger documentation with summaries, descriptions, and response models.
 
 ## Running Tests
 
@@ -241,9 +300,12 @@ docker compose run --rm api pytest -v
 pytest -v
 ```
 
-## SQL Detective Challenge
+### Test Coverage (33 tests)
 
-The `sql_detective.sql` file (to be added in Phase 4) contains the five analytical queries for the second part of the assignment, using the supplied recruiters/job_postings/applicants/interviews schema.
+- **Health & Database**: 2 tests
+- **Candidate/Job CRUD**: 6 tests (list, get by ID, 404 handling)
+- **Scoring Functions**: 17 tests (skill, experience, culture, final score, explanations)
+- **Matching API**: 8 tests (endpoints, sorting, tie-breaking, reasons)
 
 ## AI Tool Usage
 

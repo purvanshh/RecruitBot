@@ -32,3 +32,33 @@ class JobResponse(BaseModel):
 
 class JobListResponse(BaseModel):
     jobs: List[JobResponse]
+
+
+class MatchCandidateResponse(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    score: float
+    reason: str
+
+
+class JobMatchesResponse(BaseModel):
+    job_id: int
+    job_title: str
+    matches: List[MatchCandidateResponse]
+
+
+class MatchJobResponse(BaseModel):
+    job_id: int
+    job_title: str
+    score: float
+    reason: str
+
+
+class CandidateMatchesResponse(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    matches: List[MatchJobResponse]
+
+
+class ErrorResponse(BaseModel):
+    detail: str
