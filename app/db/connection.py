@@ -1,12 +1,13 @@
-import psycopg
+import logging
+from contextlib import contextmanager
+
+from psycopg import ClientCursor
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from contextlib import contextmanager
-import logging
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
 
 _pool: ConnectionPool | None = None
 
@@ -45,17 +46,23 @@ def get_db_connection():
         pool.putconn(conn)
 
 
-def execute_schema():
+def _execute_sql_file(path: str) -> None:
+    """Run a multi-statement SQL file via the simple query protocol."""
+    with open(path, "r", encoding="utf-8") as f:
+        script = f.read()
     with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            with open("app/db/schema.sql", "r") as f:
-                cur.execute(f.read())
+        # ClientCursor uses the simple query protocol, which allows
+        # multiple statements (needed for schema/seed scripts that
+        # contain string literals with semicolons).
+        with ClientCursor(conn) as cur:
+            cur.execute(script)
+
+
+def execute_schema():
+    _execute_sql_file("app/db/schema.sql")
     logger.info("Database schema executed")
 
 
 def execute_seed():
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            with open("app/db/seed.sql", "r") as f:
-                cur.execute(f.read())
+    _execute_sql_file("app/db/seed.sql")
     logger.info("Database seed data executed")

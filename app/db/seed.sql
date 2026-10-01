@@ -1,4 +1,16 @@
 -- =============================================
+-- RecruiterFlow Section B seed data
+-- Exact candidate/job values from the assignment PDF.
+-- Junction tables are cleared first so re-seeding replaces
+-- obsolete traits/skills instead of leaving stale rows.
+-- =============================================
+
+DELETE FROM candidate_traits;
+DELETE FROM candidate_skills;
+DELETE FROM job_culture_keywords;
+DELETE FROM job_required_skills;
+
+-- =============================================
 -- SKILLS
 -- =============================================
 INSERT INTO skills (id, name) VALUES
@@ -27,8 +39,9 @@ INSERT INTO skills (id, name) VALUES
 (23, 'team-building'),
 (24, 'mentorship'),
 (25, 'security'),
-(26, 'loyalty')
-ON CONFLICT (id) DO NOTHING;
+(26, 'loyalty'),
+(27, 'optimism')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 -- =============================================
 -- CANDIDATES
@@ -49,7 +62,11 @@ INSERT INTO candidates (id, name, experience_years, availability, quirk) VALUES
 (13, 'Ted L.', 7, 'Immediate', 'Turns every technical setback into a folksy metaphor.'),
 (14, 'Miranda P.', 18, 'Not looking', 'Reviews every PR personally. Says nothing. Everyone panics.'),
 (15, 'Dwight S.', 9, 'Immediate', 'Assistant to the regional backend engineer.')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    experience_years = EXCLUDED.experience_years,
+    availability = EXCLUDED.availability,
+    quirk = EXCLUDED.quirk;
 
 -- =============================================
 -- CANDIDATE SKILLS
@@ -79,34 +96,32 @@ INSERT INTO candidate_skills (candidate_id, skill_id) VALUES
 (11, 22), (11, 6), (11, 23),
 -- Olivia P.
 (12, 21), (12, 14), (12, 20), (12, 9),
--- Ted L.
-(13, 23), (13, 24), (13, 6),
+-- Ted L. (team-building, optimism, mentorship, public-speaking)
+(13, 23), (13, 27), (13, 24), (13, 6),
 -- Miranda P.
 (14, 9), (14, 14), (14, 11), (14, 19),
 -- Dwight S.
-(15, 22), (15, 14), (15, 25), (15, 26)
-ON CONFLICT DO NOTHING;
+(15, 22), (15, 14), (15, 25), (15, 26);
 
 -- =============================================
--- CANDIDATE TRAITS
+-- CANDIDATE TRAITS (exact PDF values)
 -- =============================================
 INSERT INTO candidate_traits (candidate_id, trait) VALUES
 (1, 'analytical'), (1, 'blunt'),
-(2, 'detail-oriented'), (2, 'thorough'),
-(3, 'innovative'), (3, 'reckless'),
-(4, 'organized'), (4, 'persistent'),
-(5, 'minimalist'), (5, 'pragmatic'),
-(6, 'brilliant'), (6, 'unconventional'),
-(7, 'perceptive'), (7, 'articulate'),
-(8, 'resourceful'), (8, 'improvisational'),
-(9, 'precise'), (9, 'pedantic'),
-(10, 'strategic'), (10, 'resilient'),
-(11, 'charismatic'), (11, 'self-aware'),
-(12, 'decisive'), (12, 'calm'),
-(13, 'optimistic'), (13, 'empathetic'),
-(14, 'exacting'), (14, 'intimidating'),
-(15, 'loyal'), (15, 'intense')
-ON CONFLICT DO NOTHING;
+(2, 'detail-oriented'), (2, 'overachiever'),
+(3, 'confident'), (3, 'innovative'),
+(4, 'tenacious'), (4, 'organized'),
+(5, 'stubborn'), (5, 'principled'),
+(6, 'genius'), (6, 'reckless'),
+(7, 'optimistic'), (7, 'sharp'),
+(8, 'calm'), (8, 'improviser'),
+(9, 'rigid'), (9, 'brilliant'),
+(10, 'resilient'), (10, 'decisive'),
+(11, 'enthusiastic'), (11, 'chaotic'),
+(12, 'decisive'), (12, 'intense'),
+(13, 'empathetic'), (13, 'persistent'),
+(14, 'demanding'), (14, 'decisive'),
+(15, 'intense'), (15, 'loyal');
 
 -- =============================================
 -- JOBS
@@ -118,7 +133,10 @@ INSERT INTO jobs (id, title, min_experience, tagline) VALUES
 (4, 'Engineering Manager, Chaos Team', 5, 'Herd cats. The cats are senior engineers.'),
 (5, 'Incident Commander', 4, '3am page. You''re the one who picks up.'),
 (6, 'Sales Engineer', 3, 'Sell the vision, then go build it.')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    min_experience = EXCLUDED.min_experience,
+    tagline = EXCLUDED.tagline;
 
 -- =============================================
 -- JOB REQUIRED SKILLS
@@ -135,8 +153,7 @@ INSERT INTO job_required_skills (job_id, skill_id) VALUES
 -- Incident Commander
 (5, 21), (5, 20), (5, 14),
 -- Sales Engineer
-(6, 22), (6, 6), (6, 14)
-ON CONFLICT DO NOTHING;
+(6, 22), (6, 6), (6, 14);
 
 -- =============================================
 -- JOB CULTURE KEYWORDS
@@ -147,5 +164,9 @@ INSERT INTO job_culture_keywords (job_id, keyword) VALUES
 (3, 'energetic'), (3, 'curious'),
 (4, 'empathetic'), (4, 'organized'),
 (5, 'decisive'), (5, 'calm-under-pressure'),
-(6, 'enthusiastic'), (6, 'persistent')
-ON CONFLICT DO NOTHING;
+(6, 'enthusiastic'), (6, 'persistent');
+
+-- Keep SERIAL sequences in sync with explicit IDs
+SELECT setval(pg_get_serial_sequence('skills', 'id'), (SELECT MAX(id) FROM skills));
+SELECT setval(pg_get_serial_sequence('candidates', 'id'), (SELECT MAX(id) FROM candidates));
+SELECT setval(pg_get_serial_sequence('jobs', 'id'), (SELECT MAX(id) FROM jobs));
